@@ -85,26 +85,25 @@ radmin-vpn
 sudo bash install-old.sh
 ```
 
-*效果：编译 wine 6.0、装依赖、重编原生二进制、安装 Radmin VPN、启用 systemd 服务并启动服务——完成后会看到 `VPN IP: 26.x.x.x`。*
+*效果：编译 wine 6.0、装依赖、重编原生二进制、安装 Radmin VPN、启用 systemd 服务，然后**校验安装并退出**。不会留下任何运行中的东西。*
 
-### 第 2 步 — 加入网络（一次性）
+### 第 2 步 — 启动并加入网络（一次性）
+
+这一步才是真正启动：`run_datacenter.sh` 会**同时启动 Radmin GUI 和 VNC 服务**，让你能从另一台机器加入网络。先运行它，再用**下面两种方式之一**连上去：
 
 ```bash
 bash run_datacenter.sh
 ```
 
-这会启动服务 + GUI 到一个虚拟显示器上。用**下面两种方式之一**连上去：
+**方式 A：浏览器（noVNC）—— 端口 `6080`，默认局域网可访问**
 
-**方式 A：浏览器（noVNC）—— 端口 `6080`**
+在同一网络的浏览器里直接打开：
 
-```bash
-# 在你自己的电脑上开 SSH 隧道：
-ssh -L 6080:localhost:6080 root@<服务器IP>
-# 然后浏览器打开：
-http://localhost:6080/vnc_lite.html
+```
+http://<服务器IP>:6080/vnc_lite.html
 ```
 
-> 如果服务器就在你局域网里，运行 `bash run_datacenter.sh --web-bind 0.0.0.0`，然后直接打开 `http://<服务器IP>:6080/vnc_lite.html` —— 不用隧道。
+> ⚠ noVNC 是**无密码、root 权限**的桌面，默认就在局域网开放。在不完全可信的网络上，加 `--vnc-password <密码>`，或用 `--web-bind 127.0.0.1` 只监听本机（再走 SSH 隧道：`ssh -L 6080:localhost:6080 root@<服务器IP>`）。
 
 **方式 B：VNC 客户端 —— 端口 `5900`（老系统上更可靠）**
 
@@ -115,15 +114,19 @@ ssh -L 5900:localhost:5900 root@<服务器IP>
 localhost:5900
 ```
 
-在 GUI 里创建或加入网络。成员关系存进 wineprefix，之后 `run_vps.sh`（headless）会自动重连。
+在 GUI 里创建或加入网络。加完后，在那个终端按 **Ctrl+C** 停掉 GUI——成员关系已存进 wineprefix，下一步 `run_vps.sh`（headless）会自动重连。
 
-### 第 3 步 — 以后都用 headless 运行
+### 第 3 步 — 日常运行
+
+第 2 步 Ctrl+C 之后 VPN 是**停的**——加入网络只是"登记"，并不会让隧道一直跑。这一步才真正启动 VPN，headless、轻量（无 GUI/VNC），自动连回你加入的网络：
 
 ```bash
-bash run_vps.sh                 # 或：systemctl start radmin-vpn
+systemctl start radmin-vpn      # 后台运行，失败自动重启，SSH 断开也不死
+# 或前台观察：
+bash run_vps.sh
 ```
 
-*效果：服务启动并自动连上你加入的网络，无需界面。*
+*效果：服务起来并连上你加入的网络。systemd 单元也已 enable，每次开机自动启动——现在跑一次只是让它立刻生效。*
 
 ---
 
@@ -157,7 +160,7 @@ bash run_vps.sh                 # 或：systemctl start radmin-vpn
 | `--vnc-port <n>` | `5900` | x11vnc 服务端口 |
 | `--web-port <n>` | `6080` | noVNC 网页端口 |
 | `--vnc-password <pw>` | *(无)* | VNC / 网页密码 |
-| `--web-bind <addr>` | `127.0.0.1` | noVNC 监听地址 |
+| `--web-bind <addr>` | `0.0.0.0` | noVNC 监听地址（默认局域网可访问；不可信网络请加 `--vnc-password`，或设 `127.0.0.1` 只走 SSH 隧道） |
 
 ### 从源码编译
 

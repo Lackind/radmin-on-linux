@@ -66,18 +66,24 @@ NO_UI=0
 FILTER_UI=0
 FIX_CHAT=0
 
-# Parse args
+# Parse args. Positional while-loop (not `for arg in "$@"`) so a valueless flag
+# like --no-ui before --installer cannot misalign the value --installer consumes.
 INSTALLER=""
 INSTALLER_EXPLICIT=""
-for arg in "$@"; do
-    case "$arg" in
-        --installer) shift; INSTALLER="$1"; INSTALLER_EXPLICIT=1; shift ;;
-        --installer=*) INSTALLER="${arg#*=}"; INSTALLER_EXPLICIT=1 ;;
-        --no-ui) NO_UI=1 ;;
-        --no-broadcast-routes) NO_BCAST_ROUTES=1 ;;
-        --filter-ui) FILTER_UI=1 ;;
-        --fix-chat) FIX_CHAT=1 ;;
-        --update) DO_UPDATE=1 ;;
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --installer)
+            INSTALLER="${2:-}"; INSTALLER_EXPLICIT=1
+            shift
+            if [ $# -gt 0 ]; then shift; fi
+            ;;
+        --installer=*) INSTALLER="${1#*=}"; INSTALLER_EXPLICIT=1; shift ;;
+        --no-ui) NO_UI=1; shift ;;
+        --no-broadcast-routes) NO_BCAST_ROUTES=1; shift ;;
+        --filter-ui) FILTER_UI=1; shift ;;
+        --fix-chat) FIX_CHAT=1; shift ;;
+        --update) DO_UPDATE=1; shift ;;
+        *) shift ;;
     esac
 done
 DO_UPDATE="${DO_UPDATE:-0}"

@@ -26,6 +26,11 @@
 # ==============================================================================
 set -euo pipefail
 
+# sudo's secure_path omits /usr/local/bin, where wine 6.0 is installed. Prepend it
+# so every child (build-wine6.sh, run_vps.sh) sees our wine instead of the
+# distro's 64-bit-only wine 4.0.4.
+export PATH="/usr/local/bin:${PATH}"
+
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALLER=""
 NO_SYSTEMD=0
@@ -93,19 +98,62 @@ fi
 
 echo ""
 
-# ---- Install and start ----
+# ---- Install Radmin VPN (does NOT start the service) ----
 if [ -n "$INSTALLER" ] && [ -f "$INSTALLER" ]; then
     log "Installing Radmin VPN (silent install under Xvfb, ~1-2 min)..."
     pgrep -f 'Xvfb :99' >/dev/null 2>&1 || nohup Xvfb :99 -screen 0 1024x768x24 >/tmp/xvfb.log 2>&1 &
     sleep 1
     export DISPLAY=:99
     echo ""
-    bash "$REPO_DIR/run_vps.sh" --installer "$INSTALLER"
+    bash "$REPO_DIR/run_vps.sh" --install-only --installer "$INSTALLER"
+    # Remove the temporary Xvfb that was only needed for the installer
+    pkill -f 'Xvfb :99' 2>/dev/null || true
 else
     warn "No Radmin installer found. Download one, place it in $REPO_DIR or ~/Downloads, then run:"
     warn "    export DISPLAY=:99"
-    warn "    bash $REPO_DIR/run_vps.sh --installer /path/to/Radmin_VPN_2.1.4951.1.exe"
+    warn "    bash $REPO_DIR/run_vps.sh --install-only --installer /path/to/Radmin_VPN_2.1.4951.1.exe"
     warn ""
     warn "  Supported versions: 2.1.4951.1 or 2.0.4899.9"
     warn "  Download: https://www.radmin-vpn.com/"
+    die "Radmin installer not found — nothing to install"
+fi
+
+# ---- Verify the installation ----
+log "Verifying installation..."
+VERIFY_FAIL=0
+WP="$REPO_DIR/wineprefix"
+check_ok()   { good "$1"; }
+check_bad()  { warn "MISSING: $1"; VERIFY_FAIL=1; }
+
+for f in tap_bridge rvpnnetmp.sys adapter_hook.dll rvpn_launcher.exe netsh.exe netsh64.exe drvinst.exe; do
+    [ -f "$REPO_DIR/build/$f" ] && check_ok "build/$f" || check_bad "build/$f"
+done
+
+if [ -f "$WP/drive_c/Program Files (x86)/Radmin VPN/RvControlSvc.exe" ] || \
+   [ -f "$WP/drive_c/Program Files (x86)/Radmin LAN/RvControlSvc.exe" ]; then
+    check_ok "Radmin VPN installed in the wineprefix"
+else
+    check_bad "Radmin VPN (RvControlSvc.exe) in the wineprefix"
+fi
+
+if wine --version 2>/dev/null | grep -qE '^wine-([6-9]|[1-9][0-9])\.'; then
+    check_ok "wine $(wine --version 2>/dev/null) (32-bit capable)"
+else
+    check_bad "a 32-bit-capable wine (got: $(wine --version 2>/dev/null || echo none))"
+fi
+
+[ -f /etc/systemd/system/radmin-vpn.service ] \
+    && check_ok "systemd unit radmin-vpn.service" \
+    || warn "systemd unit not installed (fine if --no-systemd was used)"
+
+echo ""
+if [ "$VERIFY_FAIL" -eq 0 ]; then
+    good "Installation verified. Nothing is running — proceed to start it."
+    echo ""
+    echo "  Next:"
+    echo "    1) Start it and join a network (once):  bash run_datacenter.sh"
+    echo "    2) Then run headless daily:             bash run_vps.sh   (or: systemctl start radmin-vpn)"
+else
+    warn "Installation is incomplete — see MISSING above."
+    exit 1
 fi

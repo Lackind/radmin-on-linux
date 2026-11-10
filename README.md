@@ -85,26 +85,25 @@ Download **`Radmin_VPN_2.1.4951.1.exe`** (or `2.0.4899.9`) from <https://www.rad
 sudo bash install-old.sh
 ```
 
-*Effect: compiles wine 6.0, installs dependencies, recompiles native binaries, installs Radmin VPN, enables the systemd service, and starts the service — you'll see `VPN IP: 26.x.x.x` when done.*
+*Effect: compiles wine 6.0, installs dependencies, recompiles native binaries, installs Radmin VPN, enables the systemd service, then **verifies everything and exits**. Nothing is left running.*
 
-### Step 2 — Join a network (one-time)
+### Step 2 — Start it and join a network (one-time)
+
+This is where the VPN actually starts: `run_datacenter.sh` launches the Radmin GUI **and a VNC server** together, so you can join a network from another machine. Run it, then connect **one of two ways**:
 
 ```bash
 bash run_datacenter.sh
 ```
 
-This starts the service + GUI on a virtual display. Connect to it **one of two ways**:
+**A) Browser (noVNC) — port `6080`, LAN-accessible by default**
 
-**A) Browser (noVNC) — port `6080`**
+Open in a browser on the same network:
 
-```bash
-# On your own machine, open an SSH tunnel:
-ssh -L 6080:localhost:6080 root@<server-ip>
-# Then open in a browser:
-http://localhost:6080/vnc_lite.html
+```
+http://<server-ip>:6080/vnc_lite.html
 ```
 
-> If the server is on your LAN, run `bash run_datacenter.sh --web-bind 0.0.0.0` and open `http://<server-ip>:6080/vnc_lite.html` directly — no tunnel needed.
+> ⚠ noVNC is an **unauthenticated, root-capable desktop**, reachable on the LAN by default. On any network you don't fully trust, add `--vnc-password <pw>`, or keep it host-only with `--web-bind 127.0.0.1` (then use an SSH tunnel: `ssh -L 6080:localhost:6080 root@<server-ip>`).
 
 **B) VNC client — port `5900` (more reliable on old systems)**
 
@@ -115,15 +114,19 @@ ssh -L 5900:localhost:5900 root@<server-ip>
 localhost:5900
 ```
 
-Create or join a network in the GUI. The membership is saved in the wineprefix, so `run_vps.sh` (headless) reconnects automatically afterward.
+Create or join a network in the GUI. When done, press **Ctrl+C** in that terminal to stop the GUI — the membership is saved in the wineprefix, so `run_vps.sh` (headless) reconnects automatically in the next step.
 
-### Step 3 — Run headless from now on
+### Step 3 — Run it (daily)
+
+Step 2's Ctrl+C left the VPN **stopped** — joining a network only records it; it doesn't keep a tunnel running. This step starts the VPN for real, headless and lightweight (no GUI/VNC), reconnecting to the network you joined:
 
 ```bash
-bash run_vps.sh                 # or: systemctl start radmin-vpn
+systemctl start radmin-vpn      # background, auto-restarts on failure, survives SSH disconnect
+# or, to watch it in the foreground:
+bash run_vps.sh
 ```
 
-*Effect: the service starts and auto-connects to the network you joined. No GUI needed.*
+*Effect: the service is up and connected to your joined network. The systemd unit is also enabled, so it auto-starts on every boot — you only run this now to bring it up immediately.*
 
 ---
 
@@ -157,7 +160,7 @@ Details you only need occasionally — not part of the walkthrough above.
 | `--vnc-port <n>` | `5900` | x11vnc server port |
 | `--web-port <n>` | `6080` | noVNC web port |
 | `--vnc-password <pw>` | *(none)* | VNC / web password |
-| `--web-bind <addr>` | `127.0.0.1` | noVNC listen address |
+| `--web-bind <addr>` | `0.0.0.0` | noVNC listen address (LAN-accessible by default; use `--vnc-password` on untrusted networks, or `127.0.0.1` for SSH-tunnel-only) |
 
 ### Build from source
 

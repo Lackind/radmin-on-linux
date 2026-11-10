@@ -25,12 +25,21 @@ FILTER_UI_PID=""
 # Hardcoded TAP GUID for VPS (no Wine WMI required)
 TAP_GUID="{0000000B-0000-0000-0000-4E6574446576}"
 
-# Parse args
+# Parse args. Use a positional while-loop (not `for arg in "$@"`) so that a
+# valueless flag like --install-only before --installer cannot misalign the
+# argument that --installer consumes.
 INSTALLER=""
-for arg in "$@"; do
-    case "$arg" in
-        --installer) shift; INSTALLER="$1"; shift ;;
-        --installer=*) INSTALLER="${arg#*=}" ;;
+INSTALL_ONLY=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --installer)
+            INSTALLER="${2:-}"
+            shift
+            if [ $# -gt 0 ]; then shift; fi
+            ;;
+        --installer=*) INSTALLER="${1#*=}"; shift ;;
+        --install-only) INSTALL_ONLY=1; shift ;;
+        *) shift ;;
     esac
 done
 
@@ -117,6 +126,14 @@ fi
 install_components
 
 # (the real NDIS driver is scrubbed offline in step 1b, before any wine call)
+
+# --install-only: Radmin + our components are now in the prefix. Stop here so the
+# installer (install-old.sh) can verify and exit without leaving a service running.
+# TAP device / routes / service are only set up on a normal (non-install-only) run.
+if [ "$INSTALL_ONLY" -eq 1 ]; then
+    good "Radmin VPN and components installed (install-only, not starting the service)"
+    exit 0
+fi
 
 # 4. Generate or load persistent adapter MAC
 if [ -f "$MAC_FILE" ]; then

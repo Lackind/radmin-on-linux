@@ -2,7 +2,7 @@
 # run_datacenter.sh - Radmin VPN Datacenter Edition
 # Runs on headless VPS (no display server) using Xvfb + noVNC for web-based GUI access
 # Usage: ./run_datacenter.sh [--installer /path/to/Radmin_VPN_*.exe] [--vnc-port PORT] [--web-port PORT] [--vnc-password PASS] [--web-bind ADDR]
-#   --web-bind ADDR  noVNC listen address (default 127.0.0.1; use 0.0.0.0 to expose publicly, only with --vnc-password)
+#   --web-bind ADDR  noVNC listen address (default 0.0.0.0 = LAN-accessible; use --vnc-password on untrusted networks, or 127.0.0.1 for SSH-tunnel-only)
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -43,9 +43,11 @@ VNC_PORT=5900
 WEB_PORT=6080
 VNC_PASSWORD=""
 NOVNC_PATH=""
-# Web (noVNC) bind address. Default 127.0.0.1 = reachable only via SSH tunnel.
-# Pass --web-bind 0.0.0.0 to expose it publicly (only with --vnc-password!).
-WEB_BIND="127.0.0.1"
+# Web (noVNC) bind address. Default 0.0.0.0 = reachable on the LAN directly.
+# NOTE: noVNC is an unauthenticated, root-capable desktop. On any network you do
+# not fully trust, set --vnc-password <pw>, or use --web-bind 127.0.0.1 (SSH-tunnel
+# only). See the one-line notice printed at startup.
+WEB_BIND="0.0.0.0"
 
 # PIDs for cleanup
 XVFB_PID=""
@@ -200,9 +202,9 @@ if [ -n "$VNC_PASSWORD" ]; then
     VNC_ARGS+=(-rfbauth /tmp/rvpn_vnc_password)
     good "VNC password set"
 elif [ "$WEB_BIND" != "127.0.0.1" ] && [ "$WEB_BIND" != "localhost" ]; then
-    warn "DANGER: no VNC password AND web bind is $WEB_BIND (public)."
-    echo "    Anyone reaching :$WEB_PORT gets an unauthenticated root-capable desktop."
-    echo "    Set --vnc-password, or drop --web-bind to keep it on 127.0.0.1 (SSH-tunnel only)."
+    warn "noVNC is reachable on the network at $WEB_BIND:$WEB_PORT with NO password."
+    echo "    Anyone who reaches it controls the root desktop. To secure: --vnc-password <pw>,"
+    echo "    or host-only via --web-bind 127.0.0.1 (then use an SSH tunnel)."
 else
     say "VNC has no password but web is bound to $WEB_BIND (reach via SSH tunnel: ssh -L $WEB_PORT:localhost:$WEB_PORT ...)."
 fi
@@ -237,11 +239,18 @@ NOVNC_HTML="vnc.html"
 
 good "noVNC running (pid=$WEBSOCKIFY_PID, port=$WEB_PORT)"
 echo ""
-EXTERNAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_VPS_IP")
-echo "    ┌──────────────────────────────────────────────────────┐"
-echo "    │  Open in browser to access Radmin VPN GUI:         │"
-echo "    │  http://$EXTERNAL_IP:$WEB_PORT/$NOVNC_HTML   │"
-echo "    └──────────────────────────────────────────────────────┘"
+EXTERNAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "<server-ip>")
+if [ "$WEB_BIND" = "127.0.0.1" ] || [ "$WEB_BIND" = "localhost" ]; then
+    echo "    noVNC is bound to $WEB_BIND (this host only). Reach it via an SSH tunnel:"
+    echo "        ssh -L $WEB_PORT:localhost:$WEB_PORT root@$EXTERNAL_IP"
+    echo "        then open:  http://localhost:$WEB_PORT/$NOVNC_HTML"
+    echo "    For direct LAN access instead, restart with:  --web-bind 0.0.0.0"
+else
+    echo "    ┌──────────────────────────────────────────────────────┐"
+    echo "    │  Open in a browser to access the Radmin VPN GUI:   │"
+    echo "    │  http://$EXTERNAL_IP:$WEB_PORT/$NOVNC_HTML   │"
+    echo "    └──────────────────────────────────────────────────────┘"
+fi
 echo ""
 
 # ── 5. Install Radmin if not present ──
@@ -480,7 +489,11 @@ echo "[+] ═══════════════════════�
 echo "[+]  Radmin VPN Datacenter Edition is running"
 echo "[+] "
 echo "[+]  VPN IP:  ${vpn_ip:-unknown}"
-echo "[+]  Web GUI: http://$EXTERNAL_IP:$WEB_PORT/$NOVNC_HTML"
+if [ "$WEB_BIND" = "127.0.0.1" ] || [ "$WEB_BIND" = "localhost" ]; then
+    echo "[+]  Web GUI: (localhost only) http://localhost:$WEB_PORT/$NOVNC_HTML  — via: ssh -L $WEB_PORT:localhost:$WEB_PORT root@$EXTERNAL_IP"
+else
+    echo "[+]  Web GUI: http://$EXTERNAL_IP:$WEB_PORT/$NOVNC_HTML"
+fi
 echo "[+]  VNC:     localhost:$VNC_PORT"
 echo "[+] "
 echo "[+]  Configure your networks via the web GUI."

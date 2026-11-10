@@ -13,6 +13,10 @@
 # ==============================================================================
 set -euo pipefail
 
+# sudo's secure_path omits /usr/local/bin, where an already-built wine lives.
+# Prepend it so the skip-check below sees our wine, not the distro's 4.0.4.
+export PATH="/usr/local/bin:${PATH}"
+
 WINE_VER="6.0.4"
 SRC_URL="https://dl.winehq.org/wine/source/6.0/wine-${WINE_VER}.tar.xz"
 WORK="/root"
@@ -30,12 +34,33 @@ die()  { echo -e "\033[1;31m[-]\033[0m $*" >&2; exit 1; }
 [ "$(uname -m)" = "x86_64" ] || die "Only x86_64 is supported"
 
 # ---- 0. Skip if a working 32-bit wine already exists ----
-if command -v wine >/dev/null 2>&1; then
-    if wine cmd /c echo __wine32ok__ 2>/dev/null | grep -q __wine32ok__; then
-        good "A working 32-bit wine already exists ($(wine --version 2>/dev/null)) — skipping"
-        exit 0
+# `wine cmd /c echo` does NOT prove 32-bit support: `cmd` is Wine's *64-bit*
+# builtin, so a 64-bit-only Wine (e.g. EPEL 7's wine 4.0.4) runs it fine. The
+# only reliable check is running an actual 32-bit PE — we use our own no-op
+# drvinst.exe (a 32-bit PE): a 32-bit-capable Wine runs it (exit 0), a 64-bit-only
+# Wine prints "EXE format invalid" and exits non-zero.
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+wine_runs_32bit() {
+    command -v wine >/dev/null 2>&1 || return 1
+    local pe=""
+    for c in "$SELF_DIR/prebuilt/drvinst.exe" "$SELF_DIR/build/drvinst.exe"; do
+        [ -f "$c" ] && { pe="$c"; break; }
+    done
+    if [ -n "$pe" ]; then
+        WINEDEBUG=-all timeout 60 wine "$pe" >/dev/null 2>&1 && return 0
+        return 1
     fi
+    # No test PE available — fall back to a version gate (EPEL 7's only yum wine is 4.0.4 < 6).
+    local major
+    major=$(wine --version 2>/dev/null | sed -n 's/^wine-\([0-9]\+\).*/\1/p')
+    [ -n "$major" ] && [ "$major" -ge 6 ] 2>/dev/null
+}
+
+if wine_runs_32bit; then
+    good "A working 32-bit wine already exists ($(wine --version 2>/dev/null)) — skipping"
+    exit 0
 fi
+warn "No working 32-bit wine found — compiling wine $WINE_VER (30-60 min)"
 
 command -v yum >/dev/null 2>&1 || die "Only yum-based distros are supported (RHEL 7 / CentOS 7)"
 command -v curl >/dev/null 2>&1 || die "curl not found"

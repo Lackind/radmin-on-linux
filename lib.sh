@@ -11,6 +11,10 @@
 [ -n "${_RVPN_LIB_SOURCED:-}" ] && return 0
 _RVPN_LIB_SOURCED=1
 
+# sudo's secure_path omits /usr/local/bin, where our wine 6.0 (old-system route)
+# is installed. Ensure it is found no matter how the launcher was started.
+export PATH="/usr/local/bin:${PATH}"
+
 # ── ANSI colors ───────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
