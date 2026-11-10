@@ -1,11 +1,12 @@
-# GitHub Linguist: exclude bundled third-party code from the language statistics
-# so the repo's own C / shell code is what shows up, not the vendored browser GUI.
+# GitHub Linguist: keep the language bar honest. The repo's own code is C (the
+# Wine driver / TAP bridge) and shell. The bundled noVNC (JavaScript) and
+# websockify (Python) are third-party UI dependencies and must not dominate the
+# "Languages" statistic. Extension matching is the most reliable form in
+# .gitattributes (directory globs can miss nested files).
+*.js   linguist-vendored
+*.mjs  linguist-vendored
+*.css  linguist-vendored
+*.html linguist-vendored
 
-# noVNC (JavaScript) — bundled so the browser GUI works offline on old systems.
-novnc/** linguist-vendored
-
-# websockify (Python) — bundled alongside noVNC.
 websockify/** linguist-vendored
-
-# Prebuilt Windows PE / runtime binaries (not source anyway, but be explicit).
-prebuilt/** linguist-vendored
+prebuilt/**   linguist-vendored
