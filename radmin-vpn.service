@@ -1,0 +1,16 @@
+[Unit]
+Description=Radmin VPN (Linux, headless)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__REPO_DIR__
+ExecStart=/bin/bash __REPO_DIR__/run_vps.sh
+ExecStop=/bin/bash -c 'pkill -f RvControlSvc.exe 2>/dev/null; wineserver -k 2>/dev/null; ip link delete radminvpn0 2>/dev/null; true'
+Restart=on-failure
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
