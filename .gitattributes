@@ -1,0 +1,11 @@
+# GitHub Linguist: exclude bundled third-party code from the language statistics
+# so the repo's own C / shell code is what shows up, not the vendored browser GUI.
+
+# noVNC (JavaScript) — bundled so the browser GUI works offline on old systems.
+novnc/** linguist-vendored
+
+# websockify (Python) — bundled alongside noVNC.
+websockify/** linguist-vendored
+
+# Prebuilt Windows PE / runtime binaries (not source anyway, but be explicit).
+prebuilt/** linguist-vendored
