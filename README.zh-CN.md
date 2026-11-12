@@ -213,6 +213,7 @@ make
 
 ### 常见问题
 
+- **装构建依赖时报 `is a duplicate with ...` / "unfinished transactions"** → 这台机器的 RPM 数据库不一致（常见于没做完的 CentOS 7 原地升级）。这是**原有的系统问题**，不是安装器造成的。先修：`cp -a /var/lib/rpm /var/lib/rpm.bak`、`yum-complete-transaction --cleanup-only`、`package-cleanup --cleandupes`（来自 `yum-utils`），再 `yum check` 确认干净。`build-wine6.sh` 会检测到并停下给出指引。
 - **运行 tap_bridge 报 `GLIBC_2.xx not found`** → 运行 `bash build-native.sh` 针对本机 glibc 重编。
 - **32 位依赖装不上（libstdc++.i686 冲突）** → CentOS 7 已知 multilib bug，`build-wine6.sh` 已处理。
 - **安装器卡在 "Running installer..."** → 没设 `DISPLAY`：`Xvfb :99 -screen 0 1024x768x24 &` 然后 `export DISPLAY=:99`。

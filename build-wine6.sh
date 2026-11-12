@@ -65,6 +65,23 @@ warn "No working 32-bit wine found — compiling wine $WINE_VER (30-60 min)"
 command -v yum >/dev/null 2>&1 || die "Only yum-based distros are supported (RHEL 7 / CentOS 7)"
 command -v curl >/dev/null 2>&1 || die "curl not found"
 
+# Preflight: a half-finished 7.x -> 7.9 in-place upgrade leaves duplicate RPMs and
+# unfinished transactions, which make every `yum install` below fail with
+# confusing "is a duplicate with ..." errors. Detect it and give clear guidance
+# instead of letting yum spew 170 lines. This is a pre-existing OS issue.
+_yumcheck=$(yum check 2>&1 || true)
+if printf '%s' "$_yumcheck" | grep -q 'is a duplicate with'; then
+    warn "This machine has duplicate RPM packages (usually a half-finished CentOS 7"
+    warn "in-place upgrade). Every yum install will fail until the RPM database is"
+    warn "cleaned up. That is a pre-existing OS problem, not caused by this installer."
+    warn "Repair it first (back up, then clean):"
+    echo "    cp -a /var/lib/rpm /var/lib/rpm.bak.\$(date +%s)"
+    echo "    yum-complete-transaction --cleanup-only"
+    echo "    package-cleanup --cleandupes        # from yum-utils"
+    echo "    yum check                           # should report no duplicates"
+    die "Duplicate RPM packages present — repair the RPM database, then re-run."
+fi
+
 # ---- 1. 64-bit build dependencies ----
 log "Installing 64-bit build dependencies..."
 yum install -y \

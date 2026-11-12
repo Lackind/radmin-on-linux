@@ -213,6 +213,7 @@ Downloads the Kron4ek Wine-Staging `amd64-wow64` build and `appimagetool` on fir
 
 ### Troubleshooting
 
+- **Build-dependency install fails with `is a duplicate with ...` / "unfinished transactions"** → the machine's RPM database is inconsistent (usually a half-finished CentOS 7 in-place upgrade). This is a pre-existing OS issue, not the installer's. Repair first: `cp -a /var/lib/rpm /var/lib/rpm.bak`, `yum-complete-transaction --cleanup-only`, `package-cleanup --cleandupes` (from `yum-utils`), then `yum check` should be clean. `build-wine6.sh` detects this and stops with guidance.
 - **`GLIBC_2.xx not found` running tap_bridge** → run `bash build-native.sh` to rebuild for the host glibc.
 - **32-bit deps fail (libstdc++.i686 conflict)** → known CentOS 7 multilib bug; `build-wine6.sh` handles it.
 - **Installer stuck at "Running installer..."** → `DISPLAY` not set: `Xvfb :99 -screen 0 1024x768x24 &` then `export DISPLAY=:99`.
